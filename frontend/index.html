@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Meeting Assistant</title>
+
+  <style>
+    body {
+      font-family: system-ui, Arial;
+      background: #0b1220;
+      color: #e5e7eb;
+      margin: 0;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: auto;
+      padding: 10px;
+    }
+
+    h1 {
+      font-size: 26px;
+      margin-bottom: 20px;
+    }
+
+    input, textarea {
+      width: 100%;
+      padding: 12px;
+      margin: 8px 0;
+      border-radius: 10px;
+      border: 1px solid #334155;
+      background: #111827;
+      color: white;
+      outline: none;
+      font-size: 14px;
+    }
+
+    button {
+      padding: 12px 16px;
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: bold;
+      margin: 6px 6px 0 0;
+      font-size: 14px;
+      min-height: 44px;
+    }
+
+    button:hover { opacity: 0.9; }
+
+    .card {
+      background: #111827;
+      border: 1px solid #1f2937;
+      padding: 16px;
+      border-radius: 14px;
+      margin-top: 20px;
+    }
+
+    .section-title {
+      font-size: 15px;
+      color: #93c5fd;
+      margin-bottom: 10px;
+    }
+
+    .summary {
+      white-space: pre-wrap;
+      line-height: 1.6;
+      font-size: 14px;
+    }
+
+    ul { padding-left: 16px; }
+
+    li {
+      margin: 10px 0;
+      padding: 10px;
+      background: #0f172a;
+      border-radius: 10px;
+      border: 1px solid #1f2937;
+      font-size: 14px;
+    }
+
+    .tag {
+      display: inline-block;
+      margin-top: 6px;
+      padding: 3px 8px;
+      border-radius: 20px;
+      font-size: 11px;
+      margin-right: 6px;
+      background: #1f2937;
+      color: #93c5fd;
+    }
+
+    .high { background: #7f1d1d; color: #fecaca; }
+    .medium { background: #78350f; color: #fde68a; }
+    .low { background: #064e3b; color: #a7f3d0; }
+
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .history-panel, .search-panel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 380px;
+      height: 100vh;
+      background: #0f172a;
+      border-left: 1px solid #1f2937;
+      padding: 20px;
+      overflow-y: auto;
+      transform: translateX(100%);
+      transition: 0.3s;
+      z-index: 10;
+    }
+
+    .history-panel.show,
+    .search-panel.show {
+      transform: translateX(0);
+    }
+
+    .history-item, .search-item {
+      background: #111827;
+      border: 1px solid #1f2937;
+      padding: 12px;
+      border-radius: 10px;
+      margin-bottom: 12px;
+    }
+
+    .danger { background: #7f1d1d; }
+    .ghost { background: #1f2937; }
+
+    .muted {
+      opacity: 0.7;
+      font-size: 13px;
+    }
+
+    @media (max-width: 768px) {
+      body { padding: 12px; }
+
+      button { width: 100%; margin: 6px 0; }
+
+      .history-panel, .search-panel {
+        width: 100%;
+        height: 70vh;
+        bottom: 0;
+        top: auto;
+        border-left: none;
+        border-top: 1px solid #1f2937;
+        transform: translateY(100%);
+        border-radius: 16px 16px 0 0;
+      }
+
+      .history-panel.show,
+      .search-panel.show {
+        transform: translateY(0);
+      }
+    }
+  </style>
+</head>
+
+<body>
+<div class="container">
+
+  <div class="top-bar">
+    <h1>🧠 AI Meeting Assistant</h1>
+
+    <div>
+      <button onclick="toggleSearch()">🔍 Search Notes</button>
+      <button onclick="toggleHistory()">📚 History</button>
+    </div>
+  </div>
+
+  <input id="title" placeholder="Meeting Title" />
+  <textarea id="notes" rows="6" placeholder="Paste your raw meeting notes..."></textarea>
+  <input id="participants" placeholder="Participants (comma separated)" />
+
+  <button onclick="generate()">Generate Summary</button>
+  <button onclick="resetForm()" class="ghost">Reset</button>
+
+  <div id="output" class="card" style="display:none;"></div>
+
+</div>
+
+<!-- HISTORY -->
+<div id="historyPanel" class="history-panel">
+  <h3>📚 History</h3>
+
+  <button onclick="closeHistory()">Close</button>
+  <button class="danger" onclick="clearHistory()">Clear</button>
+
+  <div id="historyContent"></div>
+</div>
+
+<!-- SEARCH -->
+<div id="searchPanel" class="search-panel">
+  <h3>🔍 Semantic Search</h3>
+
+  <input id="searchInput" placeholder="Search meetings..." />
+  <button onclick="searchNotes()">Search</button>
+  <button onclick="closeSearch()" class="ghost">Close</button>
+
+  <div id="searchResults"></div>
+</div>
+
+<script>
+const API_URL = "http://127.0.0.1:8000";
+
+/* ================= SUMMARY ================= */
+async function generate() {
+  const title = document.getElementById("title").value.trim();
+  const notes = document.getElementById("notes").value.trim();
+  const participants = document.getElementById("participants").value.trim();
+
+  if (!title || !notes) {
+    alert("Title + Notes required");
+    return;
+  }
+
+  const output = document.getElementById("output");
+  output.style.display = "block";
+  output.innerHTML = "⏳ Thinking...";
+
+  try {
+    const formData = new FormData();
+    formData.append("title", title);
+    formData.append("notes", notes);
+    formData.append("participants", participants);
+
+    const res = await fetch(`${API_URL}/summarize`, {
+      method: "POST",
+      body: formData
+    });
+
+    if (!res.ok) throw new Error("Server error");
+
+    const data = await res.json();
+
+    let html = `
+      <div class="section-title">📌 Summary</div>
+      <div class="summary">${data.summary}</div>
+
+      <div class="section-title" style="margin-top:15px;">✅ Action Items</div>
+      <ul>
+    `;
+
+    (data.action_items || []).forEach(i => {
+      html += `
+        <li>
+          <b>${i.task}</b><br/>
+          👤 ${i.owner}
+          <span class="tag ${i.priority.toLowerCase()}">${i.priority}</span>
+
+          <div>
+            ${(i.tags || []).map(t => `<span class="tag">${t}</span>`).join("")}
+          </div>
+        </li>
+      `;
+    });
+
+    html += "</ul>";
+    output.innerHTML = html;
+
+  } catch (err) {
+    output.innerHTML = "❌ Error generating summary. Check backend.";
+  }
+}
+
+/* ================= RESET ================= */
+function resetForm() {
+  document.getElementById("title").value = "";
+  document.getElementById("notes").value = "";
+  document.getElementById("participants").value = "";
+  document.getElementById("output").style.display = "none";
+}
+
+/* ================= HISTORY ================= */
+function toggleHistory() {
+  document.getElementById("historyPanel").classList.add("show");
+  loadHistory();
+}
+
+function closeHistory() {
+  document.getElementById("historyPanel").classList.remove("show");
+}
+
+async function loadHistory() {
+  const container = document.getElementById("historyContent");
+
+  try {
+    const res = await fetch(`${API_URL}/history`);
+    const data = await res.json();
+
+    if (!data.length) {
+      container.innerHTML = "<p class='muted'>No history yet.</p>";
+      return;
+    }
+
+    container.innerHTML = data.slice().reverse().map(item => `
+      <div class="history-item">
+        <b>${item.title}</b><br/><br/>
+        ${item.summary}
+      </div>
+    `).join("");
+
+  } catch {
+    container.innerHTML = "❌ Failed to load history";
+  }
+}
+
+async function clearHistory() {
+  if (!confirm("Delete ALL history?")) return;
+  await fetch(`${API_URL}/history`, { method: "DELETE" });
+  document.getElementById("historyContent").innerHTML = "";
+}
+
+/* ================= SEARCH ================= */
+function toggleSearch() {
+  document.getElementById("searchPanel").classList.add("show");
+}
+
+function closeSearch() {
+  document.getElementById("searchPanel").classList.remove("show");
+}
+
+async function searchNotes() {
+  const q = document.getElementById("searchInput").value.trim();
+  const container = document.getElementById("searchResults");
+
+  if (!q) return;
+
+  container.innerHTML = "🔎 Searching...";
+
+  try {
+    const res = await fetch(`${API_URL}/search?q=${encodeURIComponent(q)}`);
+    const data = await res.json();
+
+    if (!data.length) {
+      container.innerHTML = "<p>No matches found.</p>";
+      return;
+    }
+
+    container.innerHTML = data.map(r => `
+      <div class="search-item">
+        <b>${r.title}</b>
+        <div class="muted">Score: ${r.score.toFixed(2)}</div>
+        <p>${r.summary}</p>
+      </div>
+    `).join("");
+
+  } catch {
+    container.innerHTML = "❌ Search failed";
+  }
+}
+</script>
+
+</body>
+</html>
