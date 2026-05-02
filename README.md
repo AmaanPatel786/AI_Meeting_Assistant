@@ -65,7 +65,6 @@ History API → Frontend UI
 - Add PostgreSQL or MongoDB for scalable storage
 - Add authentication (JWT / OAuth)
 - Improve AI structured output with schema enforcement
-- Add semantic search over past meetings
 - Deploy on cloud (Render / AWS / Vercel)
 - Improve UI responsiveness for mobile
 
@@ -78,6 +77,7 @@ History API → Frontend UI
 - 🧠 AI summary + action items
 - 👤 Owner + priority tagging
 - 📚 History tracking
+- 📚 Semantic Search on past meetings
 
 ---
 
@@ -92,6 +92,10 @@ uvicorn main:app --reload
 Open frontend:
 
 index.html
+
+Run frontend:
+
+python -m http.server 5500
 
 ---
 
