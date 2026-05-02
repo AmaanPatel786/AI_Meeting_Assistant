@@ -9,15 +9,15 @@ It helps teams turn messy discussions into clean, actionable outputs in seconds.
 ## 🏗️ Architecture
 
 Frontend (HTML + JS)
-        ↓
+        →
 FastAPI Backend (Python)
-        ↓
+        →
 Whisper (Audio → Text)
-        ↓
+        →
 Gemini AI (Summarization)
-        ↓
+        →
 JSON Storage (data.json)
-        ↓
+        →
 History API → Frontend UI
 
 ---
