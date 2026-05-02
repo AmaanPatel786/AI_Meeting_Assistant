@@ -83,11 +83,11 @@ History API → Frontend UI
 
 ## ⚙️ Setup
 
-pip install fastapi uvicorn python-multipart openai-whisper google-generativeai python-dotenv
+```pip install -r requirements.txt```
 
 Run backend:
 
-uvicorn main:app --reload
+```uvicorn main:app --reload```
 
 Open frontend:
 
@@ -95,7 +95,7 @@ index.html
 
 Run frontend:
 
-python -m http.server 5500
+```python -m http.server 5500```
 
 ---
 
