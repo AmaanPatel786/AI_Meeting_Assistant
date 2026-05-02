@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, Form, Query
+from fastapi import FastAPI, UploadFile, Form, Query, File
 from fastapi.middleware.cors import CORSMiddleware
 
 import whisper
@@ -27,7 +27,11 @@ app.add_middleware(
 # GEMINI SETUP
 # =====================
 api_key = os.getenv("GOOGLE_API_KEY")
+if not api_key:
+    raise ValueError("GOOGLE_API_KEY missing in environment")
+
 genai.configure(api_key=api_key)
+
 model = genai.GenerativeModel("gemini-2.5-flash")
 
 # =====================
@@ -56,7 +60,7 @@ def save_to_db(data):
     try:
         with open(DB_FILE, "r") as f:
             db = json.load(f)
-    except:
+    except Exception:
         db = []
 
     db.append(data)
@@ -69,7 +73,7 @@ def load_db():
     try:
         with open(DB_FILE, "r") as f:
             return json.load(f)
-    except:
+    except Exception:
         return []
 
 
@@ -99,6 +103,31 @@ def extract_tags(text: str):
 
 
 # =====================
+# SAFE JSON PARSER (Gemini protection)
+# =====================
+def safe_json_parse(text: str):
+    try:
+        # try direct JSON
+        return json.loads(text)
+    except:
+        pass
+
+    try:
+        # extract JSON block if model adds noise
+        start = text.find("{")
+        end = text.rfind("}")
+        if start != -1 and end != -1:
+            return json.loads(text[start:end+1])
+    except:
+        pass
+
+    return {
+        "summary": text,
+        "action_items": []
+    }
+
+
+# =====================
 # AI FUNCTION
 # =====================
 def generate_summary(text, participants):
@@ -120,8 +149,9 @@ Return ONLY valid JSON:
 }}
 
 Rules:
-- No extra text
 - No markdown
+- No extra text
+- Output must be valid JSON only
 
 Meeting Notes:
 {text}
@@ -133,13 +163,7 @@ Participants:
         response = model.generate_content(prompt)
         raw = response.text.strip()
 
-        try:
-            return json.loads(raw)
-        except:
-            return {
-                "summary": raw,
-                "action_items": []
-            }
+        return safe_json_parse(raw)
 
     except Exception as e:
         print("AI ERROR:", e)
@@ -170,29 +194,32 @@ async def summarize(
     title: str = Form(...),
     notes: str = Form(""),
     participants: str = Form(""),
-    file: UploadFile = None
+    file: UploadFile | None = File(None)
 ):
     text = notes
 
     # 🎤 AUDIO → TEXT
-    if file and file.filename:
+    if file is not None and file.filename:
         audio_path = f"temp_{file.filename}"
 
         with open(audio_path, "wb") as f:
             f.write(await file.read())
 
-        result = whisper_model.transcribe(audio_path)
-        text = result["text"]
-
-        os.remove(audio_path)
+        try:
+            result = whisper_model.transcribe(audio_path)
+            text = result.get("text", "")
+        finally:
+            if os.path.exists(audio_path):
+                os.remove(audio_path)
 
     output = generate_summary(text, participants)
 
     # 🏷️ TAGGING
     for item in output.get("action_items", []):
-        item["tags"] = extract_tags(item.get("task", "") + " " + text)
+        task_text = item.get("task", "")
+        item["tags"] = extract_tags(task_text + " " + text)
 
-    # 🧠 EMBEDDING (summary only = cleaner semantic signal)
+    # 🧠 EMBEDDING
     embedding = get_embedding(output.get("summary", ""))
 
     record = {
@@ -226,7 +253,7 @@ def clear_history():
 
 
 # =====================
-# 🔍 SEMANTIC SEARCH (FINAL CLEAN VERSION)
+# 🔍 SEMANTIC SEARCH
 # =====================
 @app.get("/search")
 def search(q: str = Query(...)):
@@ -242,8 +269,8 @@ def search(q: str = Query(...)):
         score = cosine_similarity(query_vec, item["embedding"])
 
         results.append({
-            "title": item["title"],
-            "summary": item["summary"],
+            "title": item.get("title", ""),
+            "summary": item.get("summary", ""),
             "score": score
         })
 
