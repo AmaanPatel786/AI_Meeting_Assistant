@@ -9,15 +9,15 @@ It helps teams turn messy discussions into clean, actionable outputs in seconds.
 ## 🏗️ Architecture
 
 Frontend (HTML + JS)
-        ↓
+        →
 FastAPI Backend (Python)
-        ↓
+        →
 Whisper (Audio → Text)
-        ↓
+        →
 Gemini AI (Summarization)
-        ↓
+        →
 JSON Storage (data.json)
-        ↓
+        →
 History API → Frontend UI
 
 ---
@@ -65,7 +65,6 @@ History API → Frontend UI
 - Add PostgreSQL or MongoDB for scalable storage
 - Add authentication (JWT / OAuth)
 - Improve AI structured output with schema enforcement
-- Add semantic search over past meetings
 - Deploy on cloud (Render / AWS / Vercel)
 - Improve UI responsiveness for mobile
 
@@ -78,20 +77,25 @@ History API → Frontend UI
 - 🧠 AI summary + action items
 - 👤 Owner + priority tagging
 - 📚 History tracking
+- 📚 Semantic Search on past meetings
 
 ---
 
 ## ⚙️ Setup
 
-pip install fastapi uvicorn python-multipart openai-whisper google-generativeai python-dotenv
+```pip install -r requirements.txt```
 
 Run backend:
 
-uvicorn main:app --reload
+```uvicorn main:app --reload```
 
 Open frontend:
 
 index.html
+
+Run frontend:
+
+```python -m http.server 5500```
 
 ---
 
